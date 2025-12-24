@@ -1,5 +1,6 @@
 # avif
 Batch AVIF Converter (GUI)
+Resimleri klasör halinde .avif uzantıya çevirir
 
 Basit ve hızlı bir **Windows GUI aracı**.  
 Seçilen klasördeki **yalnızca üst dizindeki** `.jpg / .jpeg / .png` dosyalarını **AVIF** formatına dönüştürür.
