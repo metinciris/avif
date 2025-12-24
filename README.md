@@ -25,3 +25,6 @@ Dönüşüm başarılı olursa orijinal dosyayı siler (kalıntı bırakmamak i�
 ```bash
 pip install pillow pillow-avif-plugin
 python batch_to_avif_gui_noparallel.py
+
+## Download (Windows)
+EXE dosyasını GitHub **dist** sekmesinden indirebilirsiniz.
