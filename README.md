@@ -26,6 +26,7 @@ Seçilen klasördeki **yalnızca üst dizindeki** `.jpg / .jpeg / .png` dosyalar
 ---
 
 ## Varsayılan Sıkıştırma Profili  
+“Doküman arşivi” için daha iyi optimize 
 (**Renkli taranmış belgeler için dengeli ayar**)
 
 ```text
