@@ -1,4 +1,4 @@
-import init, { encode } from "https://cdn.jsdelivr.net/npm/@jsquash/avif@1.4.0/dist/avif.js";
+import init, { encode } from "https://cdn.jsdelivr.net/npm/@jsquash/avif@1.1.2-single-thread-only/dist/avif.js";
 
 const status = document.getElementById("status");
 const kpi = document.getElementById("kpi");
