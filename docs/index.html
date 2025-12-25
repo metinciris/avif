@@ -96,22 +96,28 @@
       <div class="status" id="status">AVIF motoru yükleniyor…</div>
       <div class="muted">Dosya hiçbir yere yüklenmez; dönüşüm tamamen tarayıcı içinde yapılır.</div>
 
-      <div class="stage" id="stage" aria-label="Curtain preview">
-        <img id="imgOriginal" alt="Orijinal" />
-        <div class="curtain" id="curtain">
-          <img id="imgAvif" alt="AVIF" />
-        </div>
-        <div class="divider" id="divider" style="left:0%"></div>
-        <div class="badge">Original</div>
-        <div class="badge right">AVIF</div>
-      </div>
+    <div class="stage2" id="stage2">
+  <div class="pane">
+    <div class="badge">Original</div>
+    <div class="viewport" id="vp1">
+      <img id="imgOriginal" alt="Orijinal" draggable="false" />
+    </div>
+  </div>
 
-      <div class="controls">
-        <label for="wipe">Perde:</label>
-        <input id="wipe" type="range" min="0" max="100" value="0" disabled />
-        <span class="kpi" id="wipeVal">0%</span>
-        <span class="kpi" id="download"></span>
-      </div>
+  <div class="pane">
+    <div class="badge right">AVIF</div>
+    <div class="viewport" id="vp2">
+      <img id="imgAvif" alt="AVIF" draggable="false" />
+    </div>
+  </div>
+</div>
+
+<div class="controls">
+  <span class="kpi" id="kpi"></span>
+  <span class="kpi" id="download"></span>
+</div>
+<div class="muted">Mouse wheel: zoom • Sol tık + sürükle: pan • Çift tık: sıfırla</div>
+
     </div>
   </div>
 
