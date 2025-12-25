@@ -1,9 +1,5 @@
-// ✅ Doğru import: dist/avif.js değil, encode.js
-// İstersen latest: @2.1.1
-import encode, { init } from "https://cdn.jsdelivr.net/npm/@jsquash/avif@2.1.1/encode.js";
-
-// Eğer mutlaka single-thread-only istiyorsan (worker’sız):
-// import encode, { init } from "https://cdn.jsdelivr.net/npm/@jsquash/avif@1.1.2-single-thread-only/encode.js";
+// ✅ esm.sh bağımlılıkları bundle eder, GitHub Pages'te çalışır
+import encode, { init } from "https://esm.sh/@jsquash/avif@2.1.1/encode?bundle";
 
 const status = document.getElementById("status");
 const kpi = document.getElementById("kpi");
@@ -42,9 +38,8 @@ function pctSmaller(origBytes, avifBytes) {
 
 // ---- init ----
 status.textContent = "AVIF motoru yükleniyor…";
-
 try {
-  await init(); // wasm init
+  await init();
   ready = true;
   status.textContent = "Hazır. Bir resim seç.";
   btn.disabled = false;
@@ -67,8 +62,7 @@ fileInput.addEventListener("change", async () => {
   wipe.disabled = true;
 
   const file = fileInput.files[0];
-  const origUrl = URL.createObjectURL(file);
-  imgOriginal.src = origUrl;
+  imgOriginal.src = URL.createObjectURL(file);
   imgAvif.removeAttribute("src");
 
   status.textContent = `Seçildi: ${file.name} (${fmtKB(file.size)})`;
@@ -85,7 +79,7 @@ btn.addEventListener("click", async () => {
 
   const bitmap = await createImageBitmap(file);
 
-  // ImageData üret (encode() bunu istiyor)
+  // encode() ImageData ister
   const canvas = document.createElement("canvas");
   canvas.width = bitmap.width;
   canvas.height = bitmap.height;
@@ -93,19 +87,16 @@ btn.addEventListener("click", async () => {
   ctx.drawImage(bitmap, 0, 0);
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-  // Bizim profile yakın hedef: quality ≈ 40
-  // (Tarayıcı tarafında speed/subsampling birebir aynı olmayabilir,
-  // ama demo amacı için kalite/bitrate yakın olur.)
-  const avifBytes = await encode(imageData, {
-    quality: 40,
-  });
+  // “bizim profile yakın”: quality ≈ 40
+  const avifBytes = await encode(imageData, { quality: 40 });
 
   const blob = new Blob([avifBytes], { type: "image/avif" });
   avifUrl = URL.createObjectURL(blob);
   imgAvif.src = avifUrl;
 
   const smaller = pctSmaller(file.size, blob.size);
-  kpi.textContent = `Original: ${fmtKB(file.size)} → AVIF: ${fmtKB(blob.size)} • ${smaller.toFixed(1)}% daha küçük`;
+  kpi.textContent =
+    `Original: ${fmtKB(file.size)} → AVIF: ${fmtKB(blob.size)} • ${smaller.toFixed(1)}% daha küçük`;
 
   const stem = file.name.replace(/\.[^.]+$/, "") || "demo";
   download.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVIF’i indir</a>`;
