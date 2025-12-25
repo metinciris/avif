@@ -6,6 +6,38 @@
     <link rel="icon" href="data:,">
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    .stage2{
+  margin-top: 14px;
+  border-radius: 14px;
+  overflow: hidden;
+  background:#111;
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:2px;
+  height: min(70vh, 560px);
+}
+.pane{ position:relative; background:#111; }
+.viewport{
+  position:absolute; inset:0;
+  overflow:hidden;
+  cursor: grab;
+}
+.viewport:active{ cursor: grabbing; }
+.pane img{
+  position:absolute;
+  left:50%; top:50%;
+  transform-origin: 0 0;
+  user-select:none;
+  pointer-events:none; /* drag image değil, pan viewport */
+}
+.badge{
+  position:absolute; top:10px; left:10px; z-index:2;
+  background: rgba(0,0,0,.55);
+  color:#fff; padding:6px 10px; border-radius:999px;
+  font-size:13px; backdrop-filter: blur(6px);
+}
+.badge.right{ left:auto; right:10px; }
+
     body { font-family: system-ui, Arial; background:#f6f6f6; margin:0; }
     .wrap { max-width: 920px; margin: 32px auto; padding: 0 16px; }
     .card {
