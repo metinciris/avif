@@ -1,3 +1,4 @@
+// GitHub Pages için stabil: esm.sh + bundle
 import encode, { init } from "https://esm.sh/@jsquash/avif@2.1.1/encode?bundle";
 
 const status = document.getElementById("status");
@@ -15,9 +16,9 @@ const vp2 = document.getElementById("vp2");
 let ready = false;
 let avifUrl = null;
 
-// --- pan/zoom state (shared) ---
+// shared pan/zoom
 let scale = 1;
-let tx = 0;   // pixels
+let tx = 0;
 let ty = 0;
 
 let isDragging = false;
@@ -33,8 +34,7 @@ function pctSmaller(origBytes, avifBytes) {
 }
 
 function applyTransform() {
-  // center-based transform: move image center to viewport center then apply pan/zoom
-  // We'll place image at (50%,50%) and then transform with translate+scale
+  // Keep both images in sync
   const t = `translate(${tx}px, ${ty}px) scale(${scale}) translate(-50%, -50%)`;
   imgOriginal.style.transform = t;
   imgAvif.style.transform = t;
@@ -55,16 +55,14 @@ function wheelZoom(e) {
   e.preventDefault();
 
   const oldScale = scale;
-  const delta = e.deltaY;
-  const factor = delta > 0 ? 0.90 : 1.10;
+  const factor = e.deltaY > 0 ? 0.90 : 1.10;
   const newScale = clampScale(oldScale * factor);
 
-  // Zoom around cursor position inside viewport
+  // Zoom around cursor position (relative to viewport center)
   const rect = e.currentTarget.getBoundingClientRect();
   const cx = e.clientX - rect.left - rect.width / 2;
   const cy = e.clientY - rect.top - rect.height / 2;
 
-  // Adjust pan so point under cursor stays stable
   tx = cx - (cx - tx) * (newScale / oldScale);
   ty = cy - (cy - ty) * (newScale / oldScale);
 
@@ -91,7 +89,7 @@ function endDrag() {
   isDragging = false;
 }
 
-async function imageFileToImageData(file) {
+async function fileToImageData(file) {
   const bitmap = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
   canvas.width = bitmap.width;
@@ -101,7 +99,7 @@ async function imageFileToImageData(file) {
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 
-// ---- init ----
+// Init
 status.textContent = "AVIF motoru yükleniyor…";
 try {
   await init();
@@ -113,47 +111,43 @@ try {
   console.error(e);
 }
 
-// ---- attach controls to both viewports ----
+// Controls on both viewports
 for (const vp of [vp1, vp2]) {
   vp.addEventListener("wheel", wheelZoom, { passive: false });
   vp.addEventListener("mousedown", startDrag);
   vp.addEventListener("mousemove", moveDrag);
   vp.addEventListener("mouseleave", endDrag);
-  window.addEventListener("mouseup", endDrag);
-
-  vp.addEventListener("dblclick", (e) => {
-    e.preventDefault();
-    resetView();
-  });
+  vp.addEventListener("dblclick", (e) => { e.preventDefault(); resetView(); });
 }
+window.addEventListener("mouseup", endDrag);
 
-// ---- file selection ----
+// File select
 fileInput.addEventListener("change", async () => {
   if (!fileInput.files.length) return;
 
   if (avifUrl) URL.revokeObjectURL(avifUrl);
   avifUrl = null;
+
   download.textContent = "";
   kpi.textContent = "";
   imgAvif.removeAttribute("src");
 
   const file = fileInput.files[0];
   imgOriginal.src = URL.createObjectURL(file);
-
   resetView();
+
   status.textContent = `Seçildi: ${file.name} (${fmtKB(file.size)})`;
 });
 
-// ---- convert ----
+// Convert
 btn.addEventListener("click", async () => {
   if (!ready || !fileInput.files.length) return;
 
   const file = fileInput.files[0];
   status.textContent = "Çeviriliyor…";
 
-  const imageData = await imageFileToImageData(file);
-
-  // bizim profile yakın hedef: quality ≈ 40
+  // “bizim profile yakın” hedef: quality ≈ 40
+  const imageData = await fileToImageData(file);
   const avifBytes = await encode(imageData, { quality: 40 });
 
   const blob = new Blob([avifBytes], { type: "image/avif" });
@@ -161,11 +155,10 @@ btn.addEventListener("click", async () => {
   imgAvif.src = avifUrl;
 
   const smaller = pctSmaller(file.size, blob.size);
-  kpi.textContent =
-    `Original: ${fmtKB(file.size)} → AVIF: ${fmtKB(blob.size)} • ${smaller.toFixed(1)}% daha küçük`;
+  kpi.textContent = `Original: ${fmtKB(file.size)} → AVIF: ${fmtKB(blob.size)} • ${smaller.toFixed(1)}% daha küçük`;
 
   const stem = file.name.replace(/\.[^.]+$/, "") || "demo";
   download.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVIF’i indir</a>`;
 
-  status.textContent = "Tamamlandı. Zoom/pan ile iki görüntüyü birlikte karşılaştır.";
+  status.textContent = "Tamamlandı. İki panel senkron zoom/pan ile karşılaştırılıyor.";
 });
