@@ -1,4 +1,9 @@
-import init, { encode } from "https://cdn.jsdelivr.net/npm/@jsquash/avif@1.1.2-single-thread-only/dist/avif.js";
+// ✅ Doğru import: dist/avif.js değil, encode.js
+// İstersen latest: @2.1.1
+import encode, { init } from "https://cdn.jsdelivr.net/npm/@jsquash/avif@2.1.1/encode.js";
+
+// Eğer mutlaka single-thread-only istiyorsan (worker’sız):
+// import encode, { init } from "https://cdn.jsdelivr.net/npm/@jsquash/avif@1.1.2-single-thread-only/encode.js";
 
 const status = document.getElementById("status");
 const kpi = document.getElementById("kpi");
@@ -31,20 +36,25 @@ function fmtKB(bytes) {
 }
 
 function pctSmaller(origBytes, avifBytes) {
-  // % smaller = (1 - avif/orig)*100
   if (!origBytes) return 0;
   return Math.max(0, (1 - (avifBytes / origBytes)) * 100);
 }
 
+// ---- init ----
 status.textContent = "AVIF motoru yükleniyor…";
 
-await init();
-ready = true;
-status.textContent = "Hazır. Bir resim seç.";
-btn.disabled = false;
+try {
+  await init(); // wasm init
+  ready = true;
+  status.textContent = "Hazır. Bir resim seç.";
+  btn.disabled = false;
+} catch (e) {
+  status.textContent = "AVIF motoru yüklenemedi: " + (e?.message || e);
+  console.error(e);
+}
 
+// ---- file selection ----
 fileInput.addEventListener("change", async () => {
-  // reset
   if (!fileInput.files.length) return;
 
   if (avifUrl) URL.revokeObjectURL(avifUrl);
@@ -64,36 +74,39 @@ fileInput.addEventListener("change", async () => {
   status.textContent = `Seçildi: ${file.name} (${fmtKB(file.size)})`;
 });
 
-wipe.addEventListener("input", () => {
-  setWipe(Number(wipe.value));
-});
+wipe.addEventListener("input", () => setWipe(Number(wipe.value)));
 
+// ---- convert ----
 btn.addEventListener("click", async () => {
   if (!ready || !fileInput.files.length) return;
 
   const file = fileInput.files[0];
   status.textContent = "Çeviriliyor…";
 
-  // Decode to bitmap (fast path)
   const bitmap = await createImageBitmap(file);
 
-  // “Bizim profile yakın” hedef:
-  // quality ≈ 40, chroma 4:2:0 (420)
-  // speed burada WASM tarafında farklı ölçekte; stabil olması için orta değer.
-  const avifData = await encode(bitmap, {
+  // ImageData üret (encode() bunu istiyor)
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+  // Bizim profile yakın hedef: quality ≈ 40
+  // (Tarayıcı tarafında speed/subsampling birebir aynı olmayabilir,
+  // ama demo amacı için kalite/bitrate yakın olur.)
+  const avifBytes = await encode(imageData, {
     quality: 40,
-    speed: 6,
-    chromaSubsampling: "420"
   });
 
-  const blob = new Blob([avifData], { type: "image/avif" });
+  const blob = new Blob([avifBytes], { type: "image/avif" });
   avifUrl = URL.createObjectURL(blob);
   imgAvif.src = avifUrl;
 
   const smaller = pctSmaller(file.size, blob.size);
   kpi.textContent = `Original: ${fmtKB(file.size)} → AVIF: ${fmtKB(blob.size)} • ${smaller.toFixed(1)}% daha küçük`;
 
-  // download link
   const stem = file.name.replace(/\.[^.]+$/, "") || "demo";
   download.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVIF’i indir</a>`;
 
@@ -101,19 +114,17 @@ btn.addEventListener("click", async () => {
   wipe.disabled = false;
   play.disabled = false;
 
-  // Auto show a little reveal
   setWipe(15);
 });
 
+// ---- curtain animation ----
 play.addEventListener("click", () => {
-  // Curtain opening animation: 0 -> 100
   play.disabled = true;
   const start = performance.now();
-  const dur = 900; // ms
+  const dur = 900;
 
   const tick = (t) => {
     const p = Math.min(1, (t - start) / dur);
-    // easeOutCubic
     const eased = 1 - Math.pow(1 - p, 3);
     setWipe(Math.round(eased * 100));
     if (p < 1) requestAnimationFrame(tick);
