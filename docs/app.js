@@ -1,39 +1,104 @@
-// ✅ esm.sh bağımlılıkları bundle eder, GitHub Pages'te çalışır
 import encode, { init } from "https://esm.sh/@jsquash/avif@2.1.1/encode?bundle";
 
 const status = document.getElementById("status");
 const kpi = document.getElementById("kpi");
 const btn = document.getElementById("btn");
-const play = document.getElementById("play");
 const fileInput = document.getElementById("file");
 
 const imgOriginal = document.getElementById("imgOriginal");
 const imgAvif = document.getElementById("imgAvif");
-const curtain = document.getElementById("curtain");
-const divider = document.getElementById("divider");
-
-const wipe = document.getElementById("wipe");
-const wipeVal = document.getElementById("wipeVal");
 const download = document.getElementById("download");
+
+const vp1 = document.getElementById("vp1");
+const vp2 = document.getElementById("vp2");
 
 let ready = false;
 let avifUrl = null;
 
-function setWipe(pct) {
-  const v = Math.max(0, Math.min(100, pct));
-  curtain.style.width = `${v}%`;
-  divider.style.left = `${v}%`;
-  wipe.value = String(v);
-  wipeVal.textContent = `${v}%`;
-}
+// --- pan/zoom state (shared) ---
+let scale = 1;
+let tx = 0;   // pixels
+let ty = 0;
+
+let isDragging = false;
+let lastX = 0;
+let lastY = 0;
 
 function fmtKB(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
-
 function pctSmaller(origBytes, avifBytes) {
   if (!origBytes) return 0;
   return Math.max(0, (1 - (avifBytes / origBytes)) * 100);
+}
+
+function applyTransform() {
+  // center-based transform: move image center to viewport center then apply pan/zoom
+  // We'll place image at (50%,50%) and then transform with translate+scale
+  const t = `translate(${tx}px, ${ty}px) scale(${scale}) translate(-50%, -50%)`;
+  imgOriginal.style.transform = t;
+  imgAvif.style.transform = t;
+}
+
+function resetView() {
+  scale = 1;
+  tx = 0;
+  ty = 0;
+  applyTransform();
+}
+
+function clampScale(s) {
+  return Math.max(0.2, Math.min(8, s));
+}
+
+function wheelZoom(e) {
+  e.preventDefault();
+
+  const oldScale = scale;
+  const delta = e.deltaY;
+  const factor = delta > 0 ? 0.90 : 1.10;
+  const newScale = clampScale(oldScale * factor);
+
+  // Zoom around cursor position inside viewport
+  const rect = e.currentTarget.getBoundingClientRect();
+  const cx = e.clientX - rect.left - rect.width / 2;
+  const cy = e.clientY - rect.top - rect.height / 2;
+
+  // Adjust pan so point under cursor stays stable
+  tx = cx - (cx - tx) * (newScale / oldScale);
+  ty = cy - (cy - ty) * (newScale / oldScale);
+
+  scale = newScale;
+  applyTransform();
+}
+
+function startDrag(e) {
+  isDragging = true;
+  lastX = e.clientX;
+  lastY = e.clientY;
+}
+function moveDrag(e) {
+  if (!isDragging) return;
+  const dx = e.clientX - lastX;
+  const dy = e.clientY - lastY;
+  lastX = e.clientX;
+  lastY = e.clientY;
+  tx += dx;
+  ty += dy;
+  applyTransform();
+}
+function endDrag() {
+  isDragging = false;
+}
+
+async function imageFileToImageData(file) {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  return ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 
 // ---- init ----
@@ -48,6 +113,20 @@ try {
   console.error(e);
 }
 
+// ---- attach controls to both viewports ----
+for (const vp of [vp1, vp2]) {
+  vp.addEventListener("wheel", wheelZoom, { passive: false });
+  vp.addEventListener("mousedown", startDrag);
+  vp.addEventListener("mousemove", moveDrag);
+  vp.addEventListener("mouseleave", endDrag);
+  window.addEventListener("mouseup", endDrag);
+
+  vp.addEventListener("dblclick", (e) => {
+    e.preventDefault();
+    resetView();
+  });
+}
+
 // ---- file selection ----
 fileInput.addEventListener("change", async () => {
   if (!fileInput.files.length) return;
@@ -56,19 +135,14 @@ fileInput.addEventListener("change", async () => {
   avifUrl = null;
   download.textContent = "";
   kpi.textContent = "";
-  play.disabled = true;
-
-  setWipe(0);
-  wipe.disabled = true;
+  imgAvif.removeAttribute("src");
 
   const file = fileInput.files[0];
   imgOriginal.src = URL.createObjectURL(file);
-  imgAvif.removeAttribute("src");
 
+  resetView();
   status.textContent = `Seçildi: ${file.name} (${fmtKB(file.size)})`;
 });
-
-wipe.addEventListener("input", () => setWipe(Number(wipe.value)));
 
 // ---- convert ----
 btn.addEventListener("click", async () => {
@@ -77,17 +151,9 @@ btn.addEventListener("click", async () => {
   const file = fileInput.files[0];
   status.textContent = "Çeviriliyor…";
 
-  const bitmap = await createImageBitmap(file);
+  const imageData = await imageFileToImageData(file);
 
-  // encode() ImageData ister
-  const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  ctx.drawImage(bitmap, 0, 0);
-  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-  // “bizim profile yakın”: quality ≈ 40
+  // bizim profile yakın hedef: quality ≈ 40
   const avifBytes = await encode(imageData, { quality: 40 });
 
   const blob = new Blob([avifBytes], { type: "image/avif" });
@@ -101,27 +167,5 @@ btn.addEventListener("click", async () => {
   const stem = file.name.replace(/\.[^.]+$/, "") || "demo";
   download.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVIF’i indir</a>`;
 
-  status.textContent = "Tamamlandı. Perdeyi sürükle veya animasyonu çalıştır.";
-  wipe.disabled = false;
-  play.disabled = false;
-
-  setWipe(15);
-});
-
-// ---- curtain animation ----
-play.addEventListener("click", () => {
-  play.disabled = true;
-  const start = performance.now();
-  const dur = 900;
-
-  const tick = (t) => {
-    const p = Math.min(1, (t - start) / dur);
-    const eased = 1 - Math.pow(1 - p, 3);
-    setWipe(Math.round(eased * 100));
-    if (p < 1) requestAnimationFrame(tick);
-    else play.disabled = false;
-  };
-
-  setWipe(0);
-  requestAnimationFrame(tick);
+  status.textContent = "Tamamlandı. Zoom/pan ile iki görüntüyü birlikte karşılaştır.";
 });
