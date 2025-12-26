@@ -4,7 +4,7 @@
 ### Resimleri klasör halinde `.avif` uzantıya çevirir
 
 Basit ve hızlı bir **Windows GUI aracı**.  
-Seçilen klasördeki **yalnızca üst dizindeki** `.jpg / .jpeg / .png` dosyalarını **AVIF** formatına dönüştürür.
+Seçilen klasördeki **yalnızca üst dizindeki** `.jpg / .jpeg / .png / .webp / .avif` dosyalarını yüksek sıkıştırma **AVIF** formatına dönüştürür.
 
 > Alt klasörlere girmez.
 
