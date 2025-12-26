@@ -63,6 +63,9 @@ Demo özellikleri:
 * AVIF çıktıyı indirme
 
 > Bu demo gösterim amaçlıdır; toplu dönüştürme için masaüstü uygulaması kullanılır.
+>
+> Demo avif uzantılı resim: Sadece 24 kb
+> https://raw.githubusercontent.com/metinciris/avif/refs/heads/main/docs/demo.avif
 
 ---
 
