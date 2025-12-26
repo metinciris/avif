@@ -250,12 +250,27 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
 }
 
 .handleLine{
-  position:absolute; top:0; bottom:0;
-  width:2px;
-  background: rgba(255,255,255,.92);
-  transform: translateX(-1px);
-  box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+  position:absolute;
+  top:0; bottom:0;
+  width:3px;
+  transform: translateX(-1.5px);
+
+  /* parlak gradient line */
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,.15),
+    rgba(122,168,255,.95),
+    rgba(136,255,204,.95),
+    rgba(255,255,255,.15)
+  );
+
+  /* glow */
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.25),
+    0 0 18px rgba(122,168,255,.35),
+    0 0 28px rgba(136,255,204,.22);
 }
+
 
 .handleKnob{
   position:absolute; top:50%;
@@ -271,6 +286,7 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 12px 35px rgba(0,0,0,.4);
   pointer-events:none;
+  
 }
 .handleKnob .lbl{
   font-weight: 950;
@@ -282,6 +298,18 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
 .handleKnob .sep{
   font-weight: 950;
   opacity:.9;
+}
+.pctTag{
+  margin-left: 6px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+  font-weight: 980;
+  font-size: 12px;
+  letter-spacing: .2px;
+  opacity: .95;
+  white-space: nowrap;
 }
 
 /* Converting overlay */
