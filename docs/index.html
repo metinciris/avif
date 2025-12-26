@@ -12,7 +12,7 @@
     <div class="top">
       <div class="brand">
         <h1>Resim yükle AVİF'e çevrilsin</h1>
-        <p>Slider ile karşılaştır (zoom yok). Orijinal solda, AVIF sağda.</p>
+        <p>Handle’ı sürükle: sol ORİJİNAL, sağ AVIF. Zoom + yön tuşlarıyla incele.</p>
       </div>
 
       <div class="pick">
@@ -29,13 +29,36 @@
         </div>
         <div class="meter"><i id="meterFill"></i></div>
       </div>
+
+      <!-- Zoom / Pan controls -->
+      <div class="tools" aria-label="Zoom ve yön kontrolleri">
+        <button class="btn" id="zoomOut" title="Zoom out">−</button>
+        <button class="btn" id="zoomIn" title="Zoom in">+</button>
+        <button class="btn secondary" id="resetView" title="Sıfırla">Sıfırla</button>
+
+        <div class="dpad" aria-label="Yön tuşları">
+          <button class="btn" id="panUp" title="Yukarı">↑</button>
+          <div class="dpadRow">
+            <button class="btn" id="panLeft" title="Sol">←</button>
+            <button class="btn" id="panRight" title="Sağ">→</button>
+          </div>
+          <button class="btn" id="panDown" title="Aşağı">↓</button>
+        </div>
+      </div>
     </div>
 
     <div class="status" id="status">AVIF motoru yükleniyor…</div>
 
     <div class="stage">
       <div class="badge">
-        Original <span class="meta" id="metaLeft"></span> • AVIF <span class="meta" id="metaRight"></span>
+        <span class="chip">ORİJİNAL <span class="meta" id="metaLeft"></span></span>
+        <span class="dot">•</span>
+        <span class="chip">AVIF <span class="meta" id="metaRight"></span></span>
+      </div>
+
+      <div class="cornerLabels">
+        <div class="corner left">ORİJİNAL</div>
+        <div class="corner right">AVIF</div>
       </div>
 
       <div class="overlay" id="overlay">
@@ -60,10 +83,15 @@
           </div>
         </div>
 
-        <div class="splitUI">
-          <input id="splitRange" class="range" type="range" min="0" max="100" value="50" />
+        <!-- Split UI (custom drag) -->
+        <div class="splitUI" id="splitUI">
+          <div class="handleGrab" id="handleGrab" aria-label="Karşılaştırma slider'ı"></div>
           <div class="handleLine" id="handleLine"></div>
-          <div class="handleKnob" id="handleKnob"></div>
+          <div class="handleKnob" id="handleKnob">
+            <span class="lbl left">ORİJİNAL</span>
+            <span class="sep">↔</span>
+            <span class="lbl right">AVIF</span>
+          </div>
         </div>
       </div>
     </div>
