@@ -27,12 +27,12 @@ const handleKnob = $("handleKnob");
 let ready = false;
 let avifUrl = null;
 
-// shared transform state
+// transform
 let scale = 1;
 let tx = 0;
 let ty = 0;
 
-// job cancel
+// cancel
 let currentJobId = 0;
 
 function fmtKB(bytes) {
@@ -50,9 +50,22 @@ function clampScale(s) {
 }
 function setHasSrc(imgEl, yes) {
   imgEl.classList.toggle("has-src", !!yes);
-} 
+}
+
+/* Scene sizing: critical fix */
+function setSceneSize(w, h) {
+  scene.style.width = `${w}px`;
+  scene.style.height = `${h}px`;
+
+  imgOriginal.style.width = `${w}px`;
+  imgOriginal.style.height = `${h}px`;
+
+  imgAvif.style.width = `${w}px`;
+  imgAvif.style.height = `${h}px`;
+}
 
 function applyTransform() {
+  // Now -50% works because scene has real size
   const t = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(${scale})`;
   scene.style.transform = t;
 }
@@ -71,11 +84,8 @@ function setKpi(fromBytes, toBytes) {
     return;
   }
   const smaller = pctSmaller(fromBytes, toBytes);
-  const pct = Math.max(-999, Math.min(999, smaller));
-  pctEl.textContent = `${pct >= 0 ? "-" : "+"}${Math.abs(pct).toFixed(1)}%`;
+  pctEl.textContent = `${smaller >= 0 ? "-" : "+"}${Math.abs(smaller).toFixed(1)}%`;
   sizesEl.textContent = `${fmtKB(fromBytes)} → ${fmtKB(toBytes)}`;
-
-  // bar: 0..100 clamp
   const bar = Math.max(0, Math.min(100, smaller));
   meterFill.style.width = `${bar.toFixed(0)}%`;
 }
@@ -97,13 +107,16 @@ function clearAvif() {
   downloadEl.textContent = "";
 }
 
-// Split logic: clip AVIF layer
+/* Split: AVIF layer shows RIGHT side, original shows LEFT under it */
 function setSplit(val) {
   const v = Math.max(0, Math.min(100, Number(val)));
-  // show left = original, right = avif by clipping avif from left
-  imgAvif.style.clipPath = `inset(0 ${100 - v}% 0 0)`;
 
-  // handle position
+  // Show AVIF on the RIGHT side: clip left part by v%
+  const clip = `inset(0 0 0 ${v}%)`;
+  imgAvif.style.clipPath = clip;
+  imgAvif.style.webkitClipPath = clip;
+
+  // Handle UI position
   const rect = vp.getBoundingClientRect();
   const x = rect.width * (v / 100);
   handleLine.style.left = `${x}px`;
@@ -112,7 +125,7 @@ function setSplit(val) {
 splitRange.addEventListener("input", (e) => setSplit(e.target.value));
 window.addEventListener("resize", () => setSplit(splitRange.value));
 
-/* ===== Pointer pan/zoom (pinch) ===== */
+/* Pointer pan/zoom/pinch */
 const pointers = new Map();
 let isDragging = false;
 let startDist = 0;
@@ -128,7 +141,6 @@ function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 function midpoint(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
 
 function onPointerDown(e) {
-  // slider ile çakışmasın: range input zaten üstte ve pointer-events:auto
   vp.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, toLocal(e, vp));
   if (pointers.size === 1) isDragging = true;
@@ -153,7 +165,6 @@ function onPointerMove(e) {
     applyTransform();
     return;
   }
-
   if (pointers.size === 2) {
     const [a,b] = [...pointers.values()];
     const m = midpoint(a,b);
@@ -187,7 +198,14 @@ vp.addEventListener("pointercancel", onPointerUp);
 vp.addEventListener("wheel", onWheel, { passive:false });
 vp.addEventListener("dblclick", (e) => { e.preventDefault(); resetView(); });
 
-/* ===== Decode → ImageData ===== */
+/* Decode for size + to ensure we know dimensions */
+async function getBitmapSize(file) {
+  const bm = await createImageBitmap(file);
+  const w = bm.width, h = bm.height;
+  bm.close?.();
+  return { w, h };
+}
+
 async function fileToImageData(file) {
   const bitmap = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
@@ -195,23 +213,28 @@ async function fileToImageData(file) {
   canvas.height = bitmap.height;
   const ctx = canvas.getContext("2d", { willReadFrequently:true });
   ctx.drawImage(bitmap, 0, 0);
-  return ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return imageData;
 }
 
-/* ===== Auto convert on upload ===== */
 async function convertFileToAvif(file) {
   const jobId = ++currentJobId;
 
   clearAvif();
   setKpi(null, null);
 
-  // original show
+  // Make sure scene has real size BEFORE we transform/clip
+  const { w, h } = await getBitmapSize(file);
+  setSceneSize(w, h);
+
+  // Original show
   const origUrl = URL.createObjectURL(file);
   imgOriginal.src = origUrl;
   setHasSrc(imgOriginal, true);
-  metaLeft.textContent = `(${fmtKB(file.size)})`;
+  metaLeft.textContent = `(${fmtKB(file.size)} • ${w}×${h})`;
 
-  // reset split to center
+  // split center
   splitRange.value = "50";
   setSplit(50);
 
@@ -240,7 +263,7 @@ async function convertFileToAvif(file) {
     const stem = (file.name || "image").replace(/\.[^.]+$/, "") || "image";
     downloadEl.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVIF’i indir</a>`;
 
-    statusEl.textContent = "Tamamlandı. Slider + zoom/pan ile karşılaştır.";
+    statusEl.textContent = "Tamamlandı. Slider’ı sağ/sol yapınca iki tarafı görmelisin.";
   } catch (e) {
     statusEl.textContent = `Hata: ${e?.message || e}`;
   } finally {
@@ -248,8 +271,9 @@ async function convertFileToAvif(file) {
   }
 }
 
-/* ===== Boot ===== */
 async function boot() {
+  // default scene size to avoid weird 0% translate until first image
+  setSceneSize(1, 1);
   resetView();
   setSplit(50);
   setHasSrc(imgOriginal, false);
@@ -260,7 +284,7 @@ async function boot() {
   try {
     await init();
     ready = true;
-    statusEl.textContent = "Hazır. Resim seç: otomatik AVIF’e çevrilir.";
+    statusEl.textContent = "Hazır. Resim seç: otomatik AVIF’e çevrilecek.";
   } catch (e) {
     ready = false;
     statusEl.textContent = "AVIF motoru yüklenemedi: " + (e?.message || e);
