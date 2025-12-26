@@ -22,15 +22,36 @@ const imgAvif = $("imgAvif");
 const metaLeft = $("metaLeft");
 const metaRight = $("metaRight");
 
-const splitRange = $("splitRange");
 const handleLine = $("handleLine");
 const handleKnob = $("handleKnob");
+const handleGrab = $("handleGrab");
+
+const zoomInBtn = $("zoomIn");
+const zoomOutBtn = $("zoomOut");
+const resetBtn = $("resetView");
+const panUpBtn = $("panUp");
+const panDownBtn = $("panDown");
+const panLeftBtn = $("panLeft");
+const panRightBtn = $("panRight");
 
 let ready = false;
-let avifUrl = null; // generated avif url
-let demoAvifUrl = null; // demo avif object url
-let demoJpgUrl = null;  // demo jpg object url
+
+let avifUrl = null;
+let demoAvifUrl = null;
+let demoJpgUrl = null;
+
 let currentJobId = 0;
+
+// Split state (0..100) where AVIF shows on RIGHT side only
+let split = 50;
+
+// Transform state
+let scale = 1;
+let tx = 0;
+let ty = 0;
+
+// When dragging handle, block pan/zoom pointer handlers
+let isSliding = false;
 
 function fmtKB(bytes) {
   if (!Number.isFinite(bytes)) return "—";
@@ -42,10 +63,14 @@ function pctSmaller(origBytes, avifBytes) {
   if (!origBytes || !avifBytes) return 0;
   return (1 - (avifBytes / origBytes)) * 100;
 }
+function clampScale(s) {
+  return Math.max(0.25, Math.min(12, s));
+}
 function setHasSrc(imgEl, yes) {
   imgEl.classList.toggle("has-src", !!yes);
 }
 
+/* Content must have real size */
 function setContentSize(w, h) {
   content.style.width = `${w}px`;
   content.style.height = `${h}px`;
@@ -55,6 +80,36 @@ function setContentSize(w, h) {
 
   imgAvif.style.width = `${w}px`;
   imgAvif.style.height = `${h}px`;
+}
+
+function applyTransform() {
+  content.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+}
+
+function resetView() {
+  scale = 1;
+  tx = 0;
+  ty = 0;
+  applyTransform();
+}
+
+function zoomAtCenter(mult) {
+  const prev = scale;
+  const next = clampScale(scale * mult);
+
+  // keep center-ish stable: scale around center by scaling tx/ty
+  const k = next / prev;
+  tx *= k;
+  ty *= k;
+
+  scale = next;
+  applyTransform();
+}
+
+function panBy(dx, dy) {
+  tx += dx;
+  ty += dy;
+  applyTransform();
 }
 
 function setKpi(fromBytes, toBytes) {
@@ -88,31 +143,143 @@ function clearAvif() {
   downloadEl.innerHTML = "";
 }
 
-/* Split: sol = original (altta), sağ = avif (üstte) */
-function setSplit(v) {
-  const val = Math.max(0, Math.min(100, Number(v)));
+/* Split: left shows original under, right shows AVIF on top */
+function setSplit(val) {
+  split = Math.max(0, Math.min(100, Number(val)));
 
-  // AVIF sadece sağ tarafta görünsün: sol tarafı val% kadar kes
-  const clip = `inset(0 0 0 ${val}%)`;
+  // show AVIF only on the RIGHT side: clip left by split%
+  const clip = `inset(0 0 0 ${split}%)`;
   imgAvif.style.clipPath = clip;
   imgAvif.style.webkitClipPath = clip;
 
   const rect = vp.getBoundingClientRect();
-  const x = rect.width * (val / 100);
+  const x = rect.width * (split / 100);
+
   handleLine.style.left = `${x}px`;
   handleKnob.style.left = `${x}px`;
+  handleGrab.style.left = `${x}px`;
 }
 
-splitRange.addEventListener("input", (e) => setSplit(e.target.value));
-window.addEventListener("resize", () => setSplit(splitRange.value));
+function setSplitFromClientX(clientX) {
+  const rect = vp.getBoundingClientRect();
+  const ratio = (clientX - rect.left) / Math.max(1, rect.width);
+  setSplit(ratio * 100);
+}
 
+/* Drag the handle (only) */
+handleGrab.addEventListener("pointerdown", (e) => {
+  isSliding = true;
+  handleGrab.setPointerCapture(e.pointerId);
+  setSplitFromClientX(e.clientX);
+});
+
+handleGrab.addEventListener("pointermove", (e) => {
+  if (!isSliding) return;
+  setSplitFromClientX(e.clientX);
+});
+
+function endSlide() {
+  isSliding = false;
+}
+handleGrab.addEventListener("pointerup", endSlide);
+handleGrab.addEventListener("pointercancel", endSlide);
+
+/* Wheel zoom (desktop) */
+vp.addEventListener("wheel", (e) => {
+  if (isSliding) return;
+  e.preventDefault();
+  const direction = Math.sign(e.deltaY);
+  zoomAtCenter(direction > 0 ? 0.92 : 1.08);
+}, { passive:false });
+
+/* Pinch-to-zoom + pan (mobile) */
+const pointers = new Map();
+let startDist = 0;
+let startScale = 1;
+let startTx = 0;
+let startTy = 0;
+let isDragging = false;
+
+function toLocal(e, el) {
+  const rect = el.getBoundingClientRect();
+  return { x: e.clientX - rect.left - rect.width/2, y: e.clientY - rect.top - rect.height/2 };
+}
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function midpoint(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
+
+vp.addEventListener("pointerdown", (e) => {
+  if (isSliding) return;
+  vp.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, toLocal(e, vp));
+
+  if (pointers.size === 1) isDragging = true;
+
+  if (pointers.size === 2) {
+    const [p1,p2] = [...pointers.values()];
+    startDist = dist(p1,p2);
+    startScale = scale;
+    startTx = tx;
+    startTy = ty;
+  }
+});
+
+vp.addEventListener("pointermove", (e) => {
+  if (isSliding) return;
+  if (!pointers.has(e.pointerId)) return;
+
+  const prev = pointers.get(e.pointerId);
+  const cur = toLocal(e, vp);
+  pointers.set(e.pointerId, cur);
+
+  if (pointers.size === 1 && isDragging) {
+    tx += (cur.x - prev.x);
+    ty += (cur.y - prev.y);
+    applyTransform();
+    return;
+  }
+
+  if (pointers.size === 2) {
+    const [a,b] = [...pointers.values()];
+    const m = midpoint(a,b);
+    const d = dist(a,b);
+    const base = Math.max(1, startDist);
+    const newScale = clampScale(startScale * (d / base));
+
+    const k = newScale / startScale;
+    tx = m.x - (m.x - startTx) * k;
+    ty = m.y - (m.y - startTy) * k;
+
+    scale = newScale;
+    applyTransform();
+  }
+});
+
+function onPointerUp(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size === 0) isDragging = false;
+  if (pointers.size === 1) isDragging = true;
+}
+vp.addEventListener("pointerup", onPointerUp);
+vp.addEventListener("pointercancel", onPointerUp);
+
+/* Buttons */
+zoomInBtn.addEventListener("click", () => zoomAtCenter(1.15));
+zoomOutBtn.addEventListener("click", () => zoomAtCenter(0.87));
+resetBtn.addEventListener("click", () => resetView());
+
+const PAN_STEP = 70;
+panUpBtn.addEventListener("click", () => panBy(0, -PAN_STEP));
+panDownBtn.addEventListener("click", () => panBy(0, PAN_STEP));
+panLeftBtn.addEventListener("click", () => panBy(-PAN_STEP, 0));
+panRightBtn.addEventListener("click", () => panBy(PAN_STEP, 0));
+
+/* Decode helpers */
 async function getBitmapSizeFromBlob(blob) {
   const bm = await createImageBitmap(blob);
   const w = bm.width, h = bm.height;
   bm.close?.();
   return { w, h };
 }
-
 async function fileToImageData(file) {
   const bm = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
@@ -125,9 +292,8 @@ async function fileToImageData(file) {
   return imageData;
 }
 
-/* ========= Demo loader: no conversion ========= */
+/* Demo loader: no conversion */
 async function loadDemo() {
-  // Demo varsa otomatik göster (conversion yok)
   try {
     showConverting("Demo yükleniyor…");
 
@@ -137,18 +303,14 @@ async function loadDemo() {
     ]);
 
     if (!jpgRes.ok || !avifRes.ok) {
-      hideConverting();
       statusEl.textContent = "Demo bulunamadı. demo.jpg ve demo.avif aynı klasörde olmalı.";
       return;
     }
 
     const [jpgBlob, avifBlob] = await Promise.all([jpgRes.blob(), avifRes.blob()]);
-
-    // size for content
     const { w, h } = await getBitmapSizeFromBlob(jpgBlob);
     setContentSize(w, h);
 
-    // revoke previous demo urls
     if (demoJpgUrl) URL.revokeObjectURL(demoJpgUrl);
     if (demoAvifUrl) URL.revokeObjectURL(demoAvifUrl);
 
@@ -163,17 +325,14 @@ async function loadDemo() {
     metaLeft.textContent = `(${fmtKB(jpgBlob.size)} • ${w}×${h})`;
     metaRight.textContent = `(${fmtKB(avifBlob.size)})`;
 
-    // KPI
     setKpi(jpgBlob.size, avifBlob.size);
 
-    // Split center
-    splitRange.value = "50";
-    setSplit(50);
-
-    // Download: demo avif
     downloadEl.innerHTML = `<a href="${demoAvifUrl}" download="demo.avif">AVİF’i indir</a>`;
 
-    statusEl.textContent = "Demo hazır. Slider’ı çek: sol/orijinal, sağ/AVIF.";
+    resetView();
+    setSplit(50);
+
+    statusEl.textContent = "Demo hazır. Handle’ı sürükle: sol/orijinal, sağ/AVIF.";
   } catch (e) {
     statusEl.textContent = "Demo yüklenirken hata: " + (e?.message || e);
   } finally {
@@ -181,19 +340,19 @@ async function loadDemo() {
   }
 }
 
-/* ========= Convert uploaded file (auto) ========= */
+/* Convert uploaded file (auto) */
 async function convertFileToAvif(file) {
   const jobId = ++currentJobId;
 
   clearAvif();
   setKpi(null, null);
 
-  // original show
+  // show original immediately
   const origUrl = URL.createObjectURL(file);
   imgOriginal.src = origUrl;
   setHasSrc(imgOriginal, true);
 
-  // size + scene size
+  // size & scene size
   const tmpBm = await createImageBitmap(file);
   const w = tmpBm.width, h = tmpBm.height;
   tmpBm.close?.();
@@ -202,8 +361,7 @@ async function convertFileToAvif(file) {
   metaLeft.textContent = `(${fmtKB(file.size)} • ${w}×${h})`;
   metaRight.textContent = "";
 
-  // split center
-  splitRange.value = "50";
+  resetView();
   setSplit(50);
 
   showConverting(`Çevriliyor: ${file.name} (${fmtKB(file.size)})`);
@@ -229,7 +387,7 @@ async function convertFileToAvif(file) {
     const stem = (file.name || "image").replace(/\.[^.]+$/, "") || "image";
     downloadEl.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVİF’i indir</a>`;
 
-    statusEl.textContent = "Tamamlandı. Slider ile karşılaştır.";
+    statusEl.textContent = "Tamamlandı. Handle’ı sürükle ve zoom/yön tuşlarıyla incele.";
   } catch (e) {
     statusEl.textContent = `Hata: ${e?.message || e}`;
   } finally {
@@ -237,9 +395,10 @@ async function convertFileToAvif(file) {
   }
 }
 
-/* ========= Boot ========= */
+/* Boot */
 async function boot() {
   setContentSize(1, 1);
+  resetView();
   setSplit(50);
   setHasSrc(imgOriginal, false);
   setHasSrc(imgAvif, false);
@@ -255,7 +414,7 @@ async function boot() {
     statusEl.textContent = "AVIF motoru yüklenemedi: " + (e?.message || e);
   }
 
-  // Demo otomatik aç
+  // demo auto
   await loadDemo();
 }
 
