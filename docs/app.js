@@ -50,7 +50,7 @@ function clampScale(s) {
 }
 function setHasSrc(imgEl, yes) {
   imgEl.classList.toggle("has-src", !!yes);
-}
+} 
 
 function applyTransform() {
   const t = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(${scale})`;
