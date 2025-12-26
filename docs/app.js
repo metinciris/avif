@@ -28,13 +28,6 @@ const handleKnob = $("handleKnob");
 
 let ready = false;
 let avifUrl = null;
-
-// transform state
-let scale = 1;
-let tx = 0;
-let ty = 0;
-
-// cancel
 let currentJobId = 0;
 
 function fmtKB(bytes) {
@@ -47,14 +40,10 @@ function pctSmaller(origBytes, avifBytes) {
   if (!origBytes || !avifBytes) return 0;
   return (1 - (avifBytes / origBytes)) * 100;
 }
-function clampScale(s) {
-  return Math.max(0.25, Math.min(12, s));
-}
 function setHasSrc(imgEl, yes) {
   imgEl.classList.toggle("has-src", !!yes);
 }
 
-/* Critical: content must have a real size */
 function setContentSize(w, h) {
   content.style.width = `${w}px`;
   content.style.height = `${h}px`;
@@ -64,18 +53,6 @@ function setContentSize(w, h) {
 
   imgAvif.style.width = `${w}px`;
   imgAvif.style.height = `${h}px`;
-}
-
-function applyTransform() {
-  // content local transform only (center wrapper already centers)
-  const t = `translate(${tx}px, ${ty}px) scale(${scale})`;
-  content.style.transform = t;
-}
-function resetView() {
-  scale = 1;
-  tx = 0;
-  ty = 0;
-  applyTransform();
 }
 
 function setKpi(fromBytes, toBytes) {
@@ -109,17 +86,16 @@ function clearAvif() {
   downloadEl.innerHTML = "";
 }
 
-/* Split: left side shows original (under), right side shows AVIF (top) */
+/* Split: sol = original (altta), sağ = avif (üstte) */
 function setSplit(v) {
   const val = Math.max(0, Math.min(100, Number(v)));
 
-  // Show AVIF only on the RIGHT side:
-  // clip left part by val%
+  // AVIF sadece sağ tarafta görünsün:
+  // sol tarafı val% kadar kes
   const clip = `inset(0 0 0 ${val}%)`;
   imgAvif.style.clipPath = clip;
   imgAvif.style.webkitClipPath = clip;
 
-  // Handle position
   const rect = vp.getBoundingClientRect();
   const x = rect.width * (val / 100);
   handleLine.style.left = `${x}px`;
@@ -129,123 +105,44 @@ function setSplit(v) {
 splitRange.addEventListener("input", (e) => setSplit(e.target.value));
 window.addEventListener("resize", () => setSplit(splitRange.value));
 
-/* Pointer pan/zoom/pinch */
-const pointers = new Map();
-let isDragging = false;
-let startDist = 0;
-let startScale = 1;
-let startTx = 0;
-let startTy = 0;
-
-function toLocal(e, el) {
-  const rect = el.getBoundingClientRect();
-  return { x: e.clientX - rect.left - rect.width/2, y: e.clientY - rect.top - rect.height/2 };
-}
-function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-function midpoint(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
-
-function onPointerDown(e) {
-  vp.setPointerCapture(e.pointerId);
-  pointers.set(e.pointerId, toLocal(e, vp));
-  if (pointers.size === 1) isDragging = true;
-
-  if (pointers.size === 2) {
-    const [p1,p2] = [...pointers.values()];
-    startDist = dist(p1,p2);
-    startScale = scale;
-    startTx = tx;
-    startTy = ty;
-  }
-}
-function onPointerMove(e) {
-  if (!pointers.has(e.pointerId)) return;
-  const prev = pointers.get(e.pointerId);
-  const cur = toLocal(e, vp);
-  pointers.set(e.pointerId, cur);
-
-  if (pointers.size === 1 && isDragging) {
-    // pan
-    tx += (cur.x - prev.x);
-    ty += (cur.y - prev.y);
-    applyTransform();
-    return;
-  }
-
-  if (pointers.size === 2) {
-    const [a,b] = [...pointers.values()];
-    const m = midpoint(a,b);
-    const d = dist(a,b);
-    const base = Math.max(1, startDist);
-    const newScale = clampScale(startScale * (d / base));
-
-    // keep midpoint anchored in viewport space
-    const k = newScale / startScale;
-    tx = m.x - (m.x - startTx) * k;
-    ty = m.y - (m.y - startTy) * k;
-
-    scale = newScale;
-    applyTransform();
-  }
-}
-function onPointerUp(e) {
-  pointers.delete(e.pointerId);
-  if (pointers.size === 0) isDragging = false;
-  if (pointers.size === 1) isDragging = true;
-}
-function onWheel(e) {
-  e.preventDefault();
-  const direction = Math.sign(e.deltaY);
-  const factor = direction > 0 ? 0.92 : 1.08;
-  scale = clampScale(scale * factor);
-  applyTransform();
-}
-
-vp.addEventListener("pointerdown", onPointerDown);
-vp.addEventListener("pointermove", onPointerMove);
-vp.addEventListener("pointerup", onPointerUp);
-vp.addEventListener("pointercancel", onPointerUp);
-vp.addEventListener("wheel", onWheel, { passive:false });
-vp.addEventListener("dblclick", (e) => { e.preventDefault(); resetView(); });
-
-/* Decode helpers */
 async function getBitmapSize(file) {
   const bm = await createImageBitmap(file);
   const w = bm.width, h = bm.height;
   bm.close?.();
   return { w, h };
 }
+
 async function fileToImageData(file) {
   const bm = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
   canvas.width = bm.width;
   canvas.height = bm.height;
-  const ctx = canvas.getContext("2d", { willReadFrequently:true });
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
   ctx.drawImage(bm, 0, 0);
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   bm.close?.();
   return imageData;
 }
 
-/* Auto convert */
 async function convertFileToAvif(file) {
   const jobId = ++currentJobId;
 
   clearAvif();
   setKpi(null, null);
 
+  // boyutu al ve sahneyi ölçülendir
   const { w, h } = await getBitmapSize(file);
   setContentSize(w, h);
 
-  // original
+  // original göster
   const origUrl = URL.createObjectURL(file);
   imgOriginal.src = origUrl;
   setHasSrc(imgOriginal, true);
   metaLeft.textContent = `(${fmtKB(file.size)} • ${w}×${h})`;
 
-  // reset split + view
+  // split ortada
   splitRange.value = "50";
   setSplit(50);
-  resetView();
 
   showConverting(file);
   statusEl.textContent = "Çevirme başladı…";
@@ -269,7 +166,7 @@ async function convertFileToAvif(file) {
     const stem = (file.name || "image").replace(/\.[^.]+$/, "") || "image";
     downloadEl.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVİF’i indir</a>`;
 
-    statusEl.textContent = "Tamamlandı. Slider’ı oynatınca sol/orijinal ve sağ/AVIF görünmeli.";
+    statusEl.textContent = "Tamamlandı. Slider’ı çek: sol/orijinal, sağ/AVIF.";
   } catch (e) {
     statusEl.textContent = `Hata: ${e?.message || e}`;
   } finally {
@@ -277,10 +174,8 @@ async function convertFileToAvif(file) {
   }
 }
 
-/* Boot */
 async function boot() {
   setContentSize(1, 1);
-  resetView();
   setSplit(50);
   setHasSrc(imgOriginal, false);
   setHasSrc(imgAvif, false);
