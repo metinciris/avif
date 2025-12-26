@@ -1,5 +1,4 @@
 import encode, { init } from "https://esm.sh/@jsquash/avif@2.1.1/encode?bundle";
-const splitPct = $("splitPct");
 
 const $ = (id) => document.getElementById(id);
 
@@ -26,6 +25,7 @@ const metaRight = $("metaRight");
 const handleLine = $("handleLine");
 const handleKnob = $("handleKnob");
 const handleGrab = $("handleGrab");
+const splitPct = $("splitPct");
 
 const zoomInBtn = $("zoomIn");
 const zoomOutBtn = $("zoomOut");
@@ -43,15 +43,13 @@ let demoJpgUrl = null;
 
 let currentJobId = 0;
 
-// Split state (0..100) where AVIF shows on RIGHT side only
+// split + transform
 let split = 50;
-
-// Transform state
 let scale = 1;
 let tx = 0;
 let ty = 0;
 
-// When dragging handle, block pan/zoom pointer handlers
+// sliding lock
 let isSliding = false;
 
 function fmtKB(bytes) {
@@ -71,7 +69,6 @@ function setHasSrc(imgEl, yes) {
   imgEl.classList.toggle("has-src", !!yes);
 }
 
-/* Content must have real size */
 function setContentSize(w, h) {
   content.style.width = `${w}px`;
   content.style.height = `${h}px`;
@@ -97,12 +94,9 @@ function resetView() {
 function zoomAtCenter(mult) {
   const prev = scale;
   const next = clampScale(scale * mult);
-
-  // keep center-ish stable: scale around center by scaling tx/ty
   const k = next / prev;
   tx *= k;
   ty *= k;
-
   scale = next;
   applyTransform();
 }
@@ -144,7 +138,7 @@ function clearAvif() {
   downloadEl.innerHTML = "";
 }
 
-/* Split: left shows original under, right shows AVIF on top */
+/* split: left original (under), right avif (top) */
 function setSplit(val) {
   split = Math.max(0, Math.min(100, Number(val)));
 
@@ -162,32 +156,27 @@ function setSplit(val) {
   if (splitPct) splitPct.textContent = `${Math.round(split)}%`;
 }
 
-
 function setSplitFromClientX(clientX) {
   const rect = vp.getBoundingClientRect();
   const ratio = (clientX - rect.left) / Math.max(1, rect.width);
   setSplit(ratio * 100);
 }
 
-/* Drag the handle (only) */
+/* Handle drag only */
 handleGrab.addEventListener("pointerdown", (e) => {
   isSliding = true;
   handleGrab.setPointerCapture(e.pointerId);
   setSplitFromClientX(e.clientX);
 });
-
 handleGrab.addEventListener("pointermove", (e) => {
   if (!isSliding) return;
   setSplitFromClientX(e.clientX);
 });
-
-function endSlide() {
-  isSliding = false;
-}
+function endSlide() { isSliding = false; }
 handleGrab.addEventListener("pointerup", endSlide);
 handleGrab.addEventListener("pointercancel", endSlide);
 
-/* Wheel zoom (desktop) */
+/* Wheel zoom desktop */
 vp.addEventListener("wheel", (e) => {
   if (isSliding) return;
   e.preventDefault();
@@ -195,7 +184,7 @@ vp.addEventListener("wheel", (e) => {
   zoomAtCenter(direction > 0 ? 0.92 : 1.08);
 }, { passive:false });
 
-/* Pinch-to-zoom + pan (mobile) */
+/* Pinch/pan mobile */
 const pointers = new Map();
 let startDist = 0;
 let startScale = 1;
@@ -295,7 +284,7 @@ async function fileToImageData(file) {
   return imageData;
 }
 
-/* Demo loader: no conversion */
+/* Demo loader (no conversion) */
 async function loadDemo() {
   try {
     showConverting("Demo yükleniyor…");
@@ -306,7 +295,7 @@ async function loadDemo() {
     ]);
 
     if (!jpgRes.ok || !avifRes.ok) {
-      statusEl.textContent = "Demo bulunamadı. demo.jpg ve demo.avif aynı klasörde olmalı.";
+      statusEl.textContent = "Demo bulunamadı. demo.jpg ve demo.avif aynı klasörde olmalı (isimler birebir).";
       return;
     }
 
@@ -329,7 +318,6 @@ async function loadDemo() {
     metaRight.textContent = `(${fmtKB(avifBlob.size)})`;
 
     setKpi(jpgBlob.size, avifBlob.size);
-
     downloadEl.innerHTML = `<a href="${demoAvifUrl}" download="demo.avif">AVİF’i indir</a>`;
 
     resetView();
@@ -350,12 +338,10 @@ async function convertFileToAvif(file) {
   clearAvif();
   setKpi(null, null);
 
-  // show original immediately
   const origUrl = URL.createObjectURL(file);
   imgOriginal.src = origUrl;
   setHasSrc(imgOriginal, true);
 
-  // size & scene size
   const tmpBm = await createImageBitmap(file);
   const w = tmpBm.width, h = tmpBm.height;
   tmpBm.close?.();
@@ -390,7 +376,7 @@ async function convertFileToAvif(file) {
     const stem = (file.name || "image").replace(/\.[^.]+$/, "") || "image";
     downloadEl.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVİF’i indir</a>`;
 
-    statusEl.textContent = "Tamamlandı. Handle’ı sürükle ve zoom/yön tuşlarıyla incele.";
+    statusEl.textContent = "Tamamlandı. Handle + zoom/yön tuşlarıyla incele.";
   } catch (e) {
     statusEl.textContent = `Hata: ${e?.message || e}`;
   } finally {
@@ -417,7 +403,6 @@ async function boot() {
     statusEl.textContent = "AVIF motoru yüklenemedi: " + (e?.message || e);
   }
 
-  // demo auto
   await loadDemo();
 }
 
