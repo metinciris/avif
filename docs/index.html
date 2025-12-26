@@ -8,7 +8,6 @@
   <style>
     :root{
       --bg:#070b18;
-      --panel:#0c1430;
       --line:rgba(255,255,255,.10);
       --text:#eef3ff;
       --muted:rgba(238,243,255,.72);
@@ -26,7 +25,7 @@
       background:
         radial-gradient(1200px 700px at 10% -10%, rgba(122,168,255,.35), transparent 55%),
         radial-gradient(900px 650px at 110% 0%, rgba(255,120,200,.22), transparent 55%),
-        var(--bg);
+        #070b18;
       overflow:hidden;
     }
 
@@ -34,30 +33,21 @@
       height: 100svh;
       display:flex;
       flex-direction:column;
-      padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom));
-      gap:10px;
+      padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+      gap:8px;
     }
 
+    /* Daha kompakt top */
     .top{
       display:flex;
       align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      padding: 12px 14px;
+      gap:10px;
+      padding: 10px 12px;
       border:1px solid var(--line);
       border-radius: var(--radius);
       background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
       box-shadow: var(--shadow);
       flex-wrap:wrap;
-    }
-
-    .left{
-      display:flex;
-      align-items:center;
-      gap:12px;
-      flex-wrap:wrap;
-      justify-content:flex-start;
-      min-width: min(680px, 100%);
     }
 
     .brand{
@@ -68,7 +58,7 @@
     }
     .brand h1{
       margin:0;
-      font-size: 16px;
+      font-size: 15px;
       letter-spacing:.2px;
       font-weight: 950;
       line-height:1.2;
@@ -80,12 +70,11 @@
       line-height:1.25;
     }
 
-    /* File input - solda ve “buton gibi” */
     .pick{
       display:flex;
       align-items:center;
       gap:10px;
-      padding: 9px 10px;
+      padding: 8px 10px;
       border-radius: 14px;
       border:1px dashed rgba(255,255,255,.25);
       background: rgba(255,255,255,.04);
@@ -95,22 +84,23 @@
       color: var(--muted);
     }
 
-    /* KPI - daha gösterişli */
     .kpi{
       display:flex;
       align-items:center;
       gap:12px;
-      padding: 10px 12px;
+      padding: 9px 10px;
       border-radius: 16px;
       border:1px solid rgba(122,168,255,.35);
       background: linear-gradient(180deg, rgba(122,168,255,.22), rgba(122,168,255,.10));
       min-width: 320px;
+      flex: 1 1 320px;
     }
     .kpi .big{
       display:flex;
       flex-direction:column;
       gap:2px;
       line-height:1;
+      min-width: 150px;
     }
     .kpi .pct{
       font-weight: 980;
@@ -129,7 +119,6 @@
       border: 1px solid rgba(255,255,255,.14);
       background: rgba(255,255,255,.06);
       overflow:hidden;
-      position:relative;
     }
     .meter > i{
       display:block;
@@ -143,9 +132,12 @@
       color: var(--muted);
       font-size: 12px;
       padding: 0 4px;
+      white-space: nowrap;
+      overflow:hidden;
+      text-overflow: ellipsis;
     }
 
-    /* Stage */
+    /* Stage - ekranı kapla */
     .stage{
       flex:1;
       min-height:0;
@@ -159,8 +151,8 @@
 
     .badge{
       position:absolute;
-      top:12px;
-      left:12px;
+      top:10px;
+      left:10px;
       z-index:6;
       display:inline-flex;
       align-items:center;
@@ -190,6 +182,7 @@
     }
     .viewport:active{ cursor: grabbing; }
 
+    /* Parent artık JS ile size alacak */
     .scene{
       position:absolute;
       left:50%;
@@ -198,7 +191,6 @@
       will-change: transform;
     }
 
-    /* two layers */
     .layer{
       position:absolute;
       left:0;
@@ -208,26 +200,32 @@
       pointer-events:none;
       max-width:none;
       max-height:none;
-      display:none; /* src yokken kırık ikon yok */
+      display:none;
     }
     .layer.has-src{ display:block; }
 
-    /* Split handle UI */
+    /* Split UI */
     .splitUI{
       position:absolute;
       inset:0;
       z-index:7;
-      pointer-events:none; /* sadece handle yakalayacak */
+      pointer-events:none;
     }
-
+    .range{
+      position:absolute;
+      inset:0;
+      opacity:0;
+      pointer-events:auto;
+      touch-action:none;
+      cursor: ew-resize;
+    }
     .handleLine{
       position:absolute;
-      top:0;
-      bottom:0;
+      top:0; bottom:0;
       width:2px;
-      background: rgba(255,255,255,.85);
-      box-shadow: 0 0 0 1px rgba(0,0,0,.25);
+      background: rgba(255,255,255,.9);
       transform: translateX(-1px);
+      box-shadow: 0 0 0 1px rgba(0,0,0,.25);
     }
     .handleKnob{
       position:absolute;
@@ -245,22 +243,7 @@
       justify-content:center;
       box-shadow: 0 12px 35px rgba(0,0,0,.4);
     }
-    .handleKnob:before{
-      content:"↔";
-      font-weight: 900;
-      opacity:.9;
-      letter-spacing: -1px;
-    }
-
-    /* invisible range on top for accessibility + easy drag */
-    .range{
-      position:absolute;
-      inset:0;
-      opacity:0;
-      pointer-events:auto;
-      touch-action:none;
-      cursor: ew-resize;
-    }
+    .handleKnob:before{ content:"↔"; font-weight: 900; opacity:.9; }
 
     /* converting overlay */
     .overlay{
@@ -299,18 +282,8 @@
       flex:0 0 auto;
     }
     @keyframes spin{ to{ transform: rotate(360deg); } }
-
-    .convertTitle{
-      font-weight: 950;
-      letter-spacing:.2px;
-      font-size: 13px;
-    }
-    .convertSub{
-      color: var(--muted);
-      font-size: 12px;
-      margin-top: 4px;
-      line-height: 1.25;
-    }
+    .convertTitle{ font-weight: 950; letter-spacing:.2px; font-size: 13px; }
+    .convertSub{ color: var(--muted); font-size: 12px; margin-top: 4px; line-height: 1.25; }
     .bar{
       height: 10px;
       border-radius: 999px;
@@ -320,16 +293,11 @@
       margin-top: 10px;
     }
     .bar > i{
-      display:block;
-      height:100%;
-      width:35%;
+      display:block; height:100%; width:35%;
       background: linear-gradient(90deg, rgba(122,168,255,.0), rgba(122,168,255,.85), rgba(122,168,255,.0));
       animation: sweep 1.05s ease-in-out infinite;
     }
-    @keyframes sweep{
-      0%{ transform: translateX(-120%); }
-      100%{ transform: translateX(320%); }
-    }
+    @keyframes sweep{ 0%{ transform: translateX(-120%);} 100%{ transform: translateX(320%);} }
 
     .footer{
       display:flex;
@@ -351,35 +319,30 @@
       body{ overflow:auto; }
       .app{ height:auto; min-height:100svh; }
       .brand{ min-width: unset; }
-      .left{ min-width: unset; width:100%; }
       input[type="file"]{ max-width: 180px; }
-      .kpi{ width:100%; min-width: unset; }
       .stage{ height: 82svh; }
+      .kpi{ min-width: unset; }
     }
   </style>
 </head>
 <body>
   <div class="app">
     <div class="top">
-      <div class="left">
-        <div class="brand">
-          <h1>Resim yükle AVİF'e çevrilsin</h1>
-          <p>Split handle + zoom/pan/pinch birlikte. JPG/PNG/WebP… tarayıcının açabildiği her şey.</p>
-        </div>
+      <div class="brand">
+        <h1>Resim yükle AVİF'e çevrilsin</h1>
+        <p>Split handle + zoom/pan/pinch. Orijinal altta, AVIF üstte (clip).</p>
+      </div>
 
-        <div class="pick">
-          <input id="file" type="file" accept="image/*" />
-        </div>
+      <div class="pick">
+        <input id="file" type="file" accept="image/*" />
+      </div>
 
-        <div class="kpi" aria-live="polite">
-          <div class="big">
-            <div class="pct" id="pct">—</div>
-            <div class="sizes" id="sizes">—</div>
-          </div>
-          <div class="meter" title="Sıkıştırma oranı">
-            <i id="meterFill"></i>
-          </div>
+      <div class="kpi" aria-live="polite">
+        <div class="big">
+          <div class="pct" id="pct">—</div>
+          <div class="sizes" id="sizes">—</div>
         </div>
+        <div class="meter"><i id="meterFill"></i></div>
       </div>
     </div>
 
@@ -411,8 +374,7 @@
           <img id="imgAvif" class="layer" alt="AVIF" draggable="false" />
         </div>
 
-        <!-- split UI -->
-        <div class="splitUI" id="splitUI">
+        <div class="splitUI">
           <input id="splitRange" class="range" type="range" min="0" max="100" value="50" />
           <div class="handleLine" id="handleLine"></div>
           <div class="handleKnob" id="handleKnob"></div>
