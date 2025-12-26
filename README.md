@@ -12,7 +12,7 @@ Seçilen klasördeki **yalnızca üst dizindeki** `.jpg / .jpeg / .png / .webp /
 
 ## Özellikler
 
-- ✅ `.jpg / .jpeg / .png` → `.avif`
+- ✅ `.jpg / .jpeg / .png / .webp / .avif` → `.avif`
 - ✅ **Sadece seçilen klasör** (alt klasör yok)
 - ✅ 100’den fazla dosyada **emin misin?** onayı
 - ✅ İsim çakışmalarında otomatik:  
@@ -58,7 +58,7 @@ Demo özellikleri:
 * Tek resim yükleme
 * Dönüşüm tamamen **tarayıcı içinde** yapılır (dosya upload edilmez)
 * Orijinal ve AVIF görüntüler **yan yana**
-* **Senkron zoom & pan** ile detay karşılaştırma
+* **split handle ve zoom** ile detay karşılaştırma
 * Dosya boyutu ve **sıkıştırma yüzdesi** gösterimi
 * AVIF çıktıyı indirme
 
