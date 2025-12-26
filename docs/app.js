@@ -1,4 +1,5 @@
 import encode, { init } from "https://esm.sh/@jsquash/avif@2.1.1/encode?bundle";
+const splitPct = $("splitPct");
 
 const $ = (id) => document.getElementById(id);
 
@@ -147,7 +148,6 @@ function clearAvif() {
 function setSplit(val) {
   split = Math.max(0, Math.min(100, Number(val)));
 
-  // show AVIF only on the RIGHT side: clip left by split%
   const clip = `inset(0 0 0 ${split}%)`;
   imgAvif.style.clipPath = clip;
   imgAvif.style.webkitClipPath = clip;
@@ -158,7 +158,10 @@ function setSplit(val) {
   handleLine.style.left = `${x}px`;
   handleKnob.style.left = `${x}px`;
   handleGrab.style.left = `${x}px`;
+
+  if (splitPct) splitPct.textContent = `${Math.round(split)}%`;
 }
+
 
 function setSplitFromClientX(clientX) {
   const rect = vp.getBoundingClientRect();
