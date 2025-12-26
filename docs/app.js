@@ -27,7 +27,9 @@ const handleLine = $("handleLine");
 const handleKnob = $("handleKnob");
 
 let ready = false;
-let avifUrl = null;
+let avifUrl = null; // generated avif url
+let demoAvifUrl = null; // demo avif object url
+let demoJpgUrl = null;  // demo jpg object url
 let currentJobId = 0;
 
 function fmtKB(bytes) {
@@ -69,9 +71,9 @@ function setKpi(fromBytes, toBytes) {
   meterFill.style.width = `${bar.toFixed(0)}%`;
 }
 
-function showConverting(file) {
+function showConverting(label) {
   overlay.classList.add("show");
-  convSub.textContent = `Çevriliyor: ${file.name} (${fmtKB(file.size)})`;
+  convSub.textContent = label;
 }
 function hideConverting() {
   overlay.classList.remove("show");
@@ -90,8 +92,7 @@ function clearAvif() {
 function setSplit(v) {
   const val = Math.max(0, Math.min(100, Number(v)));
 
-  // AVIF sadece sağ tarafta görünsün:
-  // sol tarafı val% kadar kes
+  // AVIF sadece sağ tarafta görünsün: sol tarafı val% kadar kes
   const clip = `inset(0 0 0 ${val}%)`;
   imgAvif.style.clipPath = clip;
   imgAvif.style.webkitClipPath = clip;
@@ -105,8 +106,8 @@ function setSplit(v) {
 splitRange.addEventListener("input", (e) => setSplit(e.target.value));
 window.addEventListener("resize", () => setSplit(splitRange.value));
 
-async function getBitmapSize(file) {
-  const bm = await createImageBitmap(file);
+async function getBitmapSizeFromBlob(blob) {
+  const bm = await createImageBitmap(blob);
   const w = bm.width, h = bm.height;
   bm.close?.();
   return { w, h };
@@ -124,28 +125,90 @@ async function fileToImageData(file) {
   return imageData;
 }
 
+/* ========= Demo loader: no conversion ========= */
+async function loadDemo() {
+  // Demo varsa otomatik göster (conversion yok)
+  try {
+    showConverting("Demo yükleniyor…");
+
+    const [jpgRes, avifRes] = await Promise.all([
+      fetch("./demo.jpg", { cache: "no-store" }),
+      fetch("./demo.avif", { cache: "no-store" }),
+    ]);
+
+    if (!jpgRes.ok || !avifRes.ok) {
+      hideConverting();
+      statusEl.textContent = "Demo bulunamadı. demo.jpg ve demo.avif aynı klasörde olmalı.";
+      return;
+    }
+
+    const [jpgBlob, avifBlob] = await Promise.all([jpgRes.blob(), avifRes.blob()]);
+
+    // size for content
+    const { w, h } = await getBitmapSizeFromBlob(jpgBlob);
+    setContentSize(w, h);
+
+    // revoke previous demo urls
+    if (demoJpgUrl) URL.revokeObjectURL(demoJpgUrl);
+    if (demoAvifUrl) URL.revokeObjectURL(demoAvifUrl);
+
+    demoJpgUrl = URL.createObjectURL(jpgBlob);
+    demoAvifUrl = URL.createObjectURL(avifBlob);
+
+    imgOriginal.src = demoJpgUrl;
+    imgAvif.src = demoAvifUrl;
+    setHasSrc(imgOriginal, true);
+    setHasSrc(imgAvif, true);
+
+    metaLeft.textContent = `(${fmtKB(jpgBlob.size)} • ${w}×${h})`;
+    metaRight.textContent = `(${fmtKB(avifBlob.size)})`;
+
+    // KPI
+    setKpi(jpgBlob.size, avifBlob.size);
+
+    // Split center
+    splitRange.value = "50";
+    setSplit(50);
+
+    // Download: demo avif
+    downloadEl.innerHTML = `<a href="${demoAvifUrl}" download="demo.avif">AVİF’i indir</a>`;
+
+    statusEl.textContent = "Demo hazır. Slider’ı çek: sol/orijinal, sağ/AVIF.";
+  } catch (e) {
+    statusEl.textContent = "Demo yüklenirken hata: " + (e?.message || e);
+  } finally {
+    hideConverting();
+  }
+}
+
+/* ========= Convert uploaded file (auto) ========= */
 async function convertFileToAvif(file) {
   const jobId = ++currentJobId;
 
   clearAvif();
   setKpi(null, null);
 
-  // boyutu al ve sahneyi ölçülendir
-  const { w, h } = await getBitmapSize(file);
-  setContentSize(w, h);
-
-  // original göster
+  // original show
   const origUrl = URL.createObjectURL(file);
   imgOriginal.src = origUrl;
   setHasSrc(imgOriginal, true);
-  metaLeft.textContent = `(${fmtKB(file.size)} • ${w}×${h})`;
 
-  // split ortada
+  // size + scene size
+  const tmpBm = await createImageBitmap(file);
+  const w = tmpBm.width, h = tmpBm.height;
+  tmpBm.close?.();
+  setContentSize(w, h);
+
+  metaLeft.textContent = `(${fmtKB(file.size)} • ${w}×${h})`;
+  metaRight.textContent = "";
+
+  // split center
   splitRange.value = "50";
   setSplit(50);
 
-  showConverting(file);
+  showConverting(`Çevriliyor: ${file.name} (${fmtKB(file.size)})`);
   statusEl.textContent = "Çevirme başladı…";
+
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   try {
@@ -159,14 +222,14 @@ async function convertFileToAvif(file) {
 
     imgAvif.src = avifUrl;
     setHasSrc(imgAvif, true);
-    metaRight.textContent = `(${fmtKB(outBlob.size)})`;
 
+    metaRight.textContent = `(${fmtKB(outBlob.size)})`;
     setKpi(file.size, outBlob.size);
 
     const stem = (file.name || "image").replace(/\.[^.]+$/, "") || "image";
     downloadEl.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVİF’i indir</a>`;
 
-    statusEl.textContent = "Tamamlandı. Slider’ı çek: sol/orijinal, sağ/AVIF.";
+    statusEl.textContent = "Tamamlandı. Slider ile karşılaştır.";
   } catch (e) {
     statusEl.textContent = `Hata: ${e?.message || e}`;
   } finally {
@@ -174,6 +237,7 @@ async function convertFileToAvif(file) {
   }
 }
 
+/* ========= Boot ========= */
 async function boot() {
   setContentSize(1, 1);
   setSplit(50);
@@ -190,6 +254,9 @@ async function boot() {
     ready = false;
     statusEl.textContent = "AVIF motoru yüklenemedi: " + (e?.message || e);
   }
+
+  // Demo otomatik aç
+  await loadDemo();
 }
 
 fileInput.addEventListener("change", async () => {
