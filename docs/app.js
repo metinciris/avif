@@ -14,9 +14,11 @@ const overlay = $("overlay");
 const convSub = $("convSub");
 
 const vp = $("vp");
-const scene = $("scene");
+const content = $("content");
+
 const imgOriginal = $("imgOriginal");
 const imgAvif = $("imgAvif");
+
 const metaLeft = $("metaLeft");
 const metaRight = $("metaRight");
 
@@ -27,7 +29,7 @@ const handleKnob = $("handleKnob");
 let ready = false;
 let avifUrl = null;
 
-// transform
+// transform state
 let scale = 1;
 let tx = 0;
 let ty = 0;
@@ -52,10 +54,10 @@ function setHasSrc(imgEl, yes) {
   imgEl.classList.toggle("has-src", !!yes);
 }
 
-/* Scene sizing: critical fix */
-function setSceneSize(w, h) {
-  scene.style.width = `${w}px`;
-  scene.style.height = `${h}px`;
+/* Critical: content must have a real size */
+function setContentSize(w, h) {
+  content.style.width = `${w}px`;
+  content.style.height = `${h}px`;
 
   imgOriginal.style.width = `${w}px`;
   imgOriginal.style.height = `${h}px`;
@@ -65,9 +67,9 @@ function setSceneSize(w, h) {
 }
 
 function applyTransform() {
-  // Now -50% works because scene has real size
-  const t = `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(${scale})`;
-  scene.style.transform = t;
+  // content local transform only (center wrapper already centers)
+  const t = `translate(${tx}px, ${ty}px) scale(${scale})`;
+  content.style.transform = t;
 }
 function resetView() {
   scale = 1;
@@ -104,24 +106,26 @@ function clearAvif() {
   imgAvif.removeAttribute("src");
   setHasSrc(imgAvif, false);
   metaRight.textContent = "";
-  downloadEl.textContent = "";
+  downloadEl.innerHTML = "";
 }
 
-/* Split: AVIF layer shows RIGHT side, original shows LEFT under it */
-function setSplit(val) {
-  const v = Math.max(0, Math.min(100, Number(val)));
+/* Split: left side shows original (under), right side shows AVIF (top) */
+function setSplit(v) {
+  const val = Math.max(0, Math.min(100, Number(v)));
 
-  // Show AVIF on the RIGHT side: clip left part by v%
-  const clip = `inset(0 0 0 ${v}%)`;
+  // Show AVIF only on the RIGHT side:
+  // clip left part by val%
+  const clip = `inset(0 0 0 ${val}%)`;
   imgAvif.style.clipPath = clip;
   imgAvif.style.webkitClipPath = clip;
 
-  // Handle UI position
+  // Handle position
   const rect = vp.getBoundingClientRect();
-  const x = rect.width * (v / 100);
+  const x = rect.width * (val / 100);
   handleLine.style.left = `${x}px`;
   handleKnob.style.left = `${x}px`;
 }
+
 splitRange.addEventListener("input", (e) => setSplit(e.target.value));
 window.addEventListener("resize", () => setSplit(splitRange.value));
 
@@ -160,11 +164,13 @@ function onPointerMove(e) {
   pointers.set(e.pointerId, cur);
 
   if (pointers.size === 1 && isDragging) {
+    // pan
     tx += (cur.x - prev.x);
     ty += (cur.y - prev.y);
     applyTransform();
     return;
   }
+
   if (pointers.size === 2) {
     const [a,b] = [...pointers.values()];
     const m = midpoint(a,b);
@@ -172,8 +178,11 @@ function onPointerMove(e) {
     const base = Math.max(1, startDist);
     const newScale = clampScale(startScale * (d / base));
 
-    tx = m.x - (m.x - startTx) * (newScale / startScale);
-    ty = m.y - (m.y - startTy) * (newScale / startScale);
+    // keep midpoint anchored in viewport space
+    const k = newScale / startScale;
+    tx = m.x - (m.x - startTx) * k;
+    ty = m.y - (m.y - startTy) * k;
+
     scale = newScale;
     applyTransform();
   }
@@ -198,47 +207,44 @@ vp.addEventListener("pointercancel", onPointerUp);
 vp.addEventListener("wheel", onWheel, { passive:false });
 vp.addEventListener("dblclick", (e) => { e.preventDefault(); resetView(); });
 
-/* Decode for size + to ensure we know dimensions */
+/* Decode helpers */
 async function getBitmapSize(file) {
   const bm = await createImageBitmap(file);
   const w = bm.width, h = bm.height;
   bm.close?.();
   return { w, h };
 }
-
 async function fileToImageData(file) {
-  const bitmap = await createImageBitmap(file);
+  const bm = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
+  canvas.width = bm.width;
+  canvas.height = bm.height;
   const ctx = canvas.getContext("2d", { willReadFrequently:true });
-  ctx.drawImage(bitmap, 0, 0);
+  ctx.drawImage(bm, 0, 0);
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  bitmap.close?.();
+  bm.close?.();
   return imageData;
 }
 
+/* Auto convert */
 async function convertFileToAvif(file) {
   const jobId = ++currentJobId;
 
   clearAvif();
   setKpi(null, null);
 
-  // Make sure scene has real size BEFORE we transform/clip
   const { w, h } = await getBitmapSize(file);
-  setSceneSize(w, h);
+  setContentSize(w, h);
 
-  // Original show
+  // original
   const origUrl = URL.createObjectURL(file);
   imgOriginal.src = origUrl;
   setHasSrc(imgOriginal, true);
   metaLeft.textContent = `(${fmtKB(file.size)} • ${w}×${h})`;
 
-  // split center
+  // reset split + view
   splitRange.value = "50";
   setSplit(50);
-
-  // reset view
   resetView();
 
   showConverting(file);
@@ -261,9 +267,9 @@ async function convertFileToAvif(file) {
     setKpi(file.size, outBlob.size);
 
     const stem = (file.name || "image").replace(/\.[^.]+$/, "") || "image";
-    downloadEl.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVIF’i indir</a>`;
+    downloadEl.innerHTML = `<a href="${avifUrl}" download="${stem}.avif">AVİF’i indir</a>`;
 
-    statusEl.textContent = "Tamamlandı. Slider’ı sağ/sol yapınca iki tarafı görmelisin.";
+    statusEl.textContent = "Tamamlandı. Slider’ı oynatınca sol/orijinal ve sağ/AVIF görünmeli.";
   } catch (e) {
     statusEl.textContent = `Hata: ${e?.message || e}`;
   } finally {
@@ -271,9 +277,9 @@ async function convertFileToAvif(file) {
   }
 }
 
+/* Boot */
 async function boot() {
-  // default scene size to avoid weird 0% translate until first image
-  setSceneSize(1, 1);
+  setContentSize(1, 1);
   resetView();
   setSplit(50);
   setHasSrc(imgOriginal, false);
@@ -288,7 +294,6 @@ async function boot() {
   } catch (e) {
     ready = false;
     statusEl.textContent = "AVIF motoru yüklenemedi: " + (e?.message || e);
-    console.error(e);
   }
 }
 
