@@ -28,7 +28,6 @@ body{
   gap:8px;
 }
 
-/* Top bar */
 .top{
   display:flex;
   align-items:center;
@@ -56,7 +55,6 @@ body{
 }
 input[type="file"]{ max-width: 220px; color: var(--muted); }
 
-/* Download button slot */
 .dl a{
   display:inline-flex;
   align-items:center;
@@ -74,7 +72,6 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
 }
 .dl a:hover{ background: rgba(255,255,255,.09); }
 
-/* KPI */
 .kpi{
   display:flex;
   align-items:center;
@@ -104,7 +101,6 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
   transition: width 650ms cubic-bezier(.2,.8,.2,1);
 }
 
-/* Buttons + tools */
 .tools{
   display:flex;
   align-items:center;
@@ -140,7 +136,6 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
   gap:6px;
 }
 
-/* Status */
 .status{
   color: var(--muted);
   font-size: 12px;
@@ -150,7 +145,6 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
   text-overflow: ellipsis;
 }
 
-/* Stage full */
 .stage{
   flex:1; min-height:0;
   border-radius: var(--radius);
@@ -205,7 +199,7 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
 .viewport{
   position:absolute; inset:0;
   overflow:hidden;
-  touch-action:none; /* pinch */
+  touch-action:none;
   user-select:none;
   cursor: grab;
 }
@@ -218,12 +212,11 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
 }
 .content{
   position:relative;
-  width:1px; height:1px; /* JS set ediyor */
+  width:1px; height:1px;
   transform-origin: 0 0;
   will-change: transform;
 }
 
-/* Layers */
 .layer{
   position:absolute; left:0; top:0;
   max-width:none; max-height:none;
@@ -238,8 +231,6 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
   z-index:7;
   pointer-events:none;
 }
-
-/* wide grab area for easy drag */
 .handleGrab{
   position:absolute;
   top:0; bottom:0;
@@ -249,13 +240,12 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
   cursor: ew-resize;
 }
 
+/* Parlak gradient + glow line */
 .handleLine{
   position:absolute;
   top:0; bottom:0;
   width:3px;
   transform: translateX(-1.5px);
-
-  /* parlak gradient line */
   background: linear-gradient(
     180deg,
     rgba(255,255,255,.15),
@@ -263,14 +253,11 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
     rgba(136,255,204,.95),
     rgba(255,255,255,.15)
   );
-
-  /* glow */
   box-shadow:
     0 0 0 1px rgba(0,0,0,.25),
     0 0 18px rgba(122,168,255,.35),
     0 0 28px rgba(136,255,204,.22);
 }
-
 
 .handleKnob{
   position:absolute; top:50%;
@@ -284,9 +271,10 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
   border: 1px solid rgba(255,255,255,.28);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 12px 35px rgba(0,0,0,.4);
+  box-shadow:
+    0 12px 35px rgba(0,0,0,.4),
+    0 0 22px rgba(122,168,255,.18);
   pointer-events:none;
-  
 }
 .handleKnob .lbl{
   font-weight: 950;
@@ -312,7 +300,7 @@ input[type="file"]{ max-width: 220px; color: var(--muted); }
   white-space: nowrap;
 }
 
-/* Converting overlay */
+/* Overlay */
 .overlay{
   position:absolute; inset:0;
   display:none; align-items:center; justify-content:center;
